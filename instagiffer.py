@@ -53,8 +53,8 @@ import hashlib
 import argparse
 import base64
 import json
-import urllib
-import urllib2
+import urllib.request, urllib.parse, urllib.error
+import urllib.request, urllib.error, urllib.parse
 import sys
 import os
 import shutil
@@ -72,22 +72,27 @@ import traceback
 import codecs
 from   random import randrange
 from   os.path import expanduser
-from   ConfigParser import SafeConfigParser, RawConfigParser
+#from   ConfigParser import SafeConfigParser, RawConfigParser
+from   configparser import SafeConfigParser, RawConfigParser
 from   threading  import Thread
-from   Queue import Queue, Empty
-from   fractions import gcd
+from   queue import Queue, Empty
+from   math import gcd
+#Python3 Changes
+import subprocess
 
 # PIL
 import PIL
 from   PIL import Image, ImageTk, ImageFilter, ImageDraw
 
 # TK
-import ttk
-import tkFont
-import tkMessageBox
-from   Tkinter import *
-from   tkColorChooser import *
-from   tkFileDialog import askopenfilename, askdirectory, asksaveasfilename
+from tkinter import ttk
+from tkinter import *
+from tkinter.ttk import *
+import tkinter.font as tkFont
+import tkinter.messagebox as tkMessageBox
+from   tkinter import *
+from   tkinter.colorchooser import *
+from   tkinter.filedialog import askopenfilename, askdirectory, asksaveasfilename
 
 
 # Win32 specific includes
@@ -203,7 +208,7 @@ def norecurse(func):
     func.called = False
     def f(*args, **kwargs):
         if func.called:
-            print "Recursion!"
+            print ("Recursion!")
             return False
         else:
             func.called = True
@@ -278,6 +283,8 @@ def DefaultOutputHandler(stdoutLines, stderrLines, cmd):
 
         if ImAMac() and type(outData) == list:
             outData = " ".join('"{0}"'.format(arg) for arg in outData)
+        else:
+            outData = " ".join('"{0}"'.format(arg) for arg in outData)
 
         # youtube dl
         youtubeDlSearch = re.search(r'\[download\]\s+([0-9\.]+)% of', outData, re.MULTILINE)
@@ -326,9 +333,9 @@ def NotifyUser(title, msg):
 def RunProcess(cmd, callback = None, returnOutput = False, callBackFinalize = True, outputTranslator = DefaultOutputHandler):
     if not __release__:
         logging.info("Running Command: " + cmd)
-
     try:
-        cmd = cmd.encode(locale.getpreferredencoding())
+    #    cmd = cmd.encode(locale.getpreferredencoding())
+         cmd = cmd
     except UnicodeError:
         logging.error("RunProcess: Command '" + cmd + "' contained undecodable unicode. Local encoding: " + str(locale.getpreferredencoding()))
 
@@ -346,7 +353,12 @@ def RunProcess(cmd, callback = None, returnOutput = False, callBackFinalize = Tr
     elif ImAMac():
         startupinfo = None
         cmd         = shlex.split(cmd)
-
+    else:
+        startupinfo = None
+        cmd         = shlex.split(cmd)
+    
+    logging.info("z")
+    
     pipe  = subprocess.Popen(cmd, startupinfo=startupinfo, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, bufsize=1, close_fds=ON_POSIX)
     qOut  = Queue()
     qErr  = Queue()
@@ -356,37 +368,43 @@ def RunProcess(cmd, callback = None, returnOutput = False, callBackFinalize = Tr
     tOut.start()
     tErr.start()
 
+    logging.info("a")
     callbackReturnedFalse = False
 
     stdout = ""
     stderr = ""
-
+    
     percent = None
     while True:
         statusStr   = None
         stderrLines = None
         stdoutLines = None
+        logging.info("b")
 
         try:
             while True: # Exhaust the queue
                 stdoutLines = qOut.get_nowait()
-                stdout     += stdoutLines
+                stdout     += str(stdoutLines)
         except: pass
 
         try:
             while True:
                 stderrLines = qErr.get_nowait()
-                stderr     += stderrLines
+                stderr     += str(stderrLines)
         except: pass
-
+        
+        logging.info("c")
         if outputTranslator is not None:
             #try:
+            logging.info("d")
             statusStr, percentDoneInt = outputTranslator(stdoutLines, stderrLines, cmd)
+            logging.info("d")
 
             if type(percentDoneInt) == int:
                 percent = percentDoneInt
             elif percent is not None:
                 percentDoneInt = percent
+            logging.info("e")
 
             #except:
             #    pass
@@ -401,6 +419,7 @@ def RunProcess(cmd, callback = None, returnOutput = False, callBackFinalize = Tr
 
             callbackReturnedFalse = True
             break
+        logging.info("f")
 
         # Check if done
         if pipe.poll() is not None:
@@ -426,14 +445,14 @@ def RunProcess(cmd, callback = None, returnOutput = False, callBackFinalize = Tr
         logging.error("Encountered error communicating with sub-process" + str(e))
 
     success = (pipe.returncode == 0)
-    stdout += remainingStdout
-    stderr += remainingStderr
+    stdout += str(remainingStdout)
+    stderr += str(remainingStderr)
 
     # Logging
     if not __release__:
         logging.info("return:  " + str(success))
-        logging.info("stdout:  " + stdout)
-        logging.error("stderr: " + stderr)
+        logging.info("stdout:  " + str(stdout))
+        logging.error("stderr: " + str(stderr))
 
     if returnOutput:
         return stdout, stderr #, success
@@ -545,7 +564,8 @@ class InstaConfig:
             return True
 
     def GetParam(self, category, key):
-        retVal = u""
+        retVal = ""
+        logging.info(sys.platform)
 
         if self.ParamExists(category, key):
             retVal = self.config._sections[category.lower()][key.lower()]
@@ -564,8 +584,9 @@ class InstaConfig:
             pass
 
         # Config file encoding is UTF-8
-        if not isinstance(retVal, unicode):
-            retVal = unicode(retVal, 'utf-8')
+        #if not isinstance(retVal, unicode):
+        if not isinstance(retVal, str):
+            retVal = str(retVal, 'utf-8')
 
 
         if retVal.startswith(";"):
@@ -626,7 +647,7 @@ class InstaConfig:
             logging.info("%s:" % (str(cat)))
 
             for k in self.config._sections[cat]:
-                dumpStr = u"  - " + k + u": "
+                dumpStr = "  - " + k + ": "
                 val = self.GetParam(cat, k)
 
                 if isinstance(val, bool):
@@ -686,15 +707,15 @@ class ImagemagickFont:
                     self.fonts[fontFamily][overallStyle] = fontId
 
     def GetFontCount(self):
-        return len(self.fonts.keys())
+        return len(list(self.fonts.keys()))
 
     def GetFamilyList(self):
-        ret = self.fonts.keys()
+        ret = list(self.fonts.keys())
         ret.sort()
         return tuple(ret)
 
     def GetFontAttributeList(self, fontFamily):
-        ret = self.fonts[fontFamily].keys()
+        ret = list(self.fonts[fontFamily].keys())
         ret.sort(reverse=True)
         return tuple(ret)
 
@@ -766,12 +787,10 @@ class AnimatedGif:
             self.gifOutPath = self.GetDefaultOutputDir() + os.sep + 'insta.gif'
         else:
             self.gifOutPath = self.conf.GetParam('paths', 'gifOutputPath')
-
+        
+        startupLog = "AnimatedGif::  gifOut: ["+self.gifOutPath+"]"
         startupLog = "AnimatedGif:: media: ["+mediaLocator+"], workingDir: ["+workDir+"], gifOut: ["+self.GetNextOutputPath()+"]"
         logging.info(startupLog)
-
-        # if mediaLocator == self.GetGifOutputPath():
-        #     self.FatalError("This file is in-use by Instagiffer!")
 
         if not os.path.exists(os.path.dirname(self.gifOutPath)):
             os.makedirs(os.path.dirname(self.gifOutPath))
@@ -803,14 +822,20 @@ class AnimatedGif:
                 self.FatalError("Failed to create working directory: " + self.maskDir)
 
         self.LoadFonts()
+        logging.info("4")
         self.CheckPaths()
+        logging.info("5")
         self.DeleteResizedImages()
+        logging.info("6")
         self.DeleteExtractedImages()
+        logging.info("7")
         self.DeleteProcessedImages()
+        logging.info("8")
         self.DeleteCapturedImages()
         self.DeleteMaskImages()
         self.DeleteAudioClip()
 
+        print("12")
         #self.DeleteGifOutput()
 
         mediaLocator = self.ResolveUrlShortcutFile(mediaLocator)
@@ -877,7 +902,786 @@ class AnimatedGif:
         if config.has_option('InternetShortcut', 'url'):
             return config.get('InternetShortcut', 'url').strip('"')
         # If there is none, return the BASEURL= value from the [DEFAULT] section.
-        if 'baseurl' in config.defaults().keys():
+        if 'baseurl' in list(config.defaults().keys()):
+            return config.defaults()['baseurl'].strip('"')
+        else:
+            return filename
+
+
+    def GetConfig(self):
+        return self.conf
+
+    def Capture(self, seconds, targetFps, width, height, x, y, showCursor, retinaDisplay, web):
+        if seconds < 1:
+            return False
+
+        # Capture as fast as possible
+        imgIdx      = 1
+        nowTs       = time.time()
+        endTs       = nowTs + seconds
+        nextFrameTs = nowTs
+
+        #
+        imgDataArray    = []
+        imgDimensions   = ()
+
+        if retinaDisplay:
+            width  *= 2
+            height *= 2
+            x      *= 2
+            y      *= 2
+
+
+        resizeRatio = 1.0
+
+        # Max width/height restrictions
+        if web:
+            maxWH     = int(self.conf.GetParam('screencap', 'webMaxWidthHeight'))
+            targetFps = int(self.conf.GetParam('screencap', 'webMaxFps'))
+
+            if width >= height and width > maxWH:
+                resizeRatio = maxWH / float(width)
+            elif height >= width and height > maxWH:
+                resizeRatio = maxWH / float(height)
+
+
+        while time.time() < endTs:
+            # Rate-limiting
+            if targetFps != 0:
+                nowTs = time.time()
+                if nowTs < nextFrameTs:
+                    time.sleep(nextFrameTs - nowTs)
+                nextFrameTs = time.time() + 1.0/targetFps
+
+            # Filename
+            capFileName = self.GetCapturedImagesDir() + 'cap%04d' % (imgIdx)
+
+            if ImAPC():
+                capFileName += '.bmp'
+
+                try:
+                    img = ImageGrab.grab((x, y, x+width, y+height))
+                except MemoryError:
+                    self.callback(True)
+                    self.FatalError("Ran out of memory during screen capture. Try recording a smaller area, or decreasing your duration.")
+                    return False
+                
+                imgDimensions = img.size
+
+                if showCursor:
+                    # Get mouse cursor position
+                    cursorX, cursorY = self.rootWindow.winfo_pointerxy()
+
+                    if cursorX > x and cursorX < x+width and cursorY > y and cursorY < y + height:
+                        # Draw Cursor (Just a dot for now)
+                        r    = 2 # radius
+                        draw = ImageDraw.Draw(img)
+                        draw.ellipse((cursorX-x-r, cursorY-y-r, cursorX-x+r, cursorY-y+r), fill="#ffffff", outline="#000000")
+
+                if self.conf.GetParamBool('screencap', 'DirectToDisk'):
+                    img.save(capFileName)
+                else:
+                    #imgDataArray.append(img.tostring()) # PIL
+                    imgDataArray.append(img.tobytes()) # PILLOW
+
+            elif ImAMac():
+                capFileName += '.bmp' # Supported formats: png, bmp jpg
+
+                scrCapCmd  = "screencapture -x "
+
+                if showCursor:
+                    scrCapCmd += "-C "
+
+                scrCapCmd += "\"%s\"" % (capFileName)
+
+                os.system(scrCapCmd)
+
+            self.imageSequence.append(capFileName)
+            imgIdx += 1
+            self.callback(False)
+
+        # Post-process
+        if ImAPC():
+            if not self.conf.GetParamBool('screencap', 'DirectToDisk'):
+                logging.info("Using fps-optimized screen cap")
+
+                frameCount = 0
+                for x in range(0, len(imgDataArray)):
+                    try:
+                        capPath = self.imageSequence[frameCount]
+                    except IndexError:
+                        break
+                    # PIL uses fromstring
+                    PIL.Image.frombytes('RGB', imgDimensions, imgDataArray[x]).resize((int(width*resizeRatio), int(height*resizeRatio)), PIL.Image.ANTIALIAS).save(capPath)
+                    if os.path.exists(capPath):
+                        frameCount += 1
+                    else:
+                        logging.error("Capture file " + capPath + " was not saved to disk for some reason")
+                
+                # Trim the list to the actual size
+                missingCount = len(self.imageSequence) - frameCount
+                if missingCount != 0:
+                    logging.error("Not all capture files were accounted for: %d missing " % (missingCount))
+                    self.imageSequence = self.imageSequence[0:min(frameCount, len(self.imageSequence))]
+
+
+        # Screen capper for Mac can't crop a specific region, so we need to do it
+        # Todo: for some reason, PNG to PNG doesn't work!!
+        if ImAMac():
+            for i in range(0, len(self.imageSequence)):
+                newFileName = os.path.dirname(self.imageSequence[i]) + '/' + os.path.splitext(os.path.basename(self.imageSequence[i]))[0] + '.jpg'
+
+                cmdConvert = '"%s" -comment "Converting captured frames:%d" -comment "instagiffer" "%s" -quality 100%% %s "%s"' % \
+                    (
+                        self.conf.GetParam('paths','convert'),
+                        i * 100 / len(self.imageSequence),
+                        self.imageSequence[i],
+                        "-crop %dx%d+%d+%d" % (width, height, x, y),
+                        newFileName
+                    )
+
+                self.imageSequence[i] = newFileName
+       
+                if not RunProcess(cmdConvert, self.callback, False, False):
+                    self.FatalError("Unable to crop screen capture frame: " + os.path.basename(self.imageSequence[x]))
+
+            self.callback(True)
+
+        self.videoLength = "00:00:%02d.000" % (seconds)
+        self.videoFps    = imgIdx/seconds
+        self.callback(True)
+        logging.info("Capture complete. FPS acheived: %f" % (self.videoFps))
+
+        return True
+
+    def CheckPaths(self):
+        if not os.access(os.path.dirname(self.gifOutPath), os.W_OK):
+            logging.error("Warning. " + os.path.dirname(self.gifOutPath) + " is not writable")
+
+        if not os.path.exists(self.conf.GetParam('paths','ffmpeg')):
+            self.FatalError("ffmpeg not found")
+        elif not os.path.exists(self.conf.GetParam('paths','convert')):
+            self.FatalError("imagemagick convert not found")
+        elif not os.path.exists(self.conf.GetParam('paths','youtubedl')):
+            self.FatalError("Youtube-dl not found")
+
+        # youtube dl
+        youtubeDlSearch = re.search(r'\[download\]\s+([0-9\.]+)% of', outData, re.MULTILINE)
+        if youtubeDlSearch:
+            i = int(float(youtubeDlSearch.group(1)))
+            s = "Downloaded %d%%..." % (i)   
+
+        # ffmpeg frame extraction progress
+        ffmpegSearch = re.search(r'frame=.+time=(\d+:\d+:\d+\.\d+)', outData, re.MULTILINE)
+        if ffmpegSearch:
+            secs = DurationStrToMillisec(ffmpegSearch.group(1))
+            s = "Extracted %.1f seconds..." % (secs/1000.0)
+
+        # imagemagick - figure out what we're doing based on comments
+        imSearch = re.search(r'^".+(convert\.exe|convert)".+-comment"? "([^"]+):(\d+)"', outData)
+        if imSearch:
+            n = int(imSearch.group(3))
+
+            if n == -1:
+                s = "%s" % (imSearch.group(2))
+            else:
+                i = n
+                s = "%d%% %s" % (i, imSearch.group(2))
+
+        return s, i
+
+
+ON_POSIX = 'posix' in sys.builtin_module_names
+
+def EnqueueProcessOutput(streamId, inStream, outQueue):
+    for line in iter(inStream.readline, b''):
+        #logging.info(streamId + ": " + line)
+        outQueue.put(line)
+
+
+#
+# Prompt User
+#
+def NotifyUser(title, msg):
+    return tkMessageBox.showinfo(title, msg)
+
+#
+# Run a process
+#
+
+def RunProcess(cmd, callback = None, returnOutput = False, callBackFinalize = True, outputTranslator = DefaultOutputHandler):
+    if not __release__:
+        logging.info("Running Command: " + cmd)
+    try:
+    #    cmd = cmd.encode(locale.getpreferredencoding())
+         cmd = cmd
+    except UnicodeError:
+        logging.error("RunProcess: Command '" + cmd + "' contained undecodable unicode. Local encoding: " + str(locale.getpreferredencoding()))
+
+        if returnOutput:
+            return "",""
+        else:
+            return False
+
+    env = os.environ.copy()
+
+    if ImAPC():
+        startupinfo              = subprocess.STARTUPINFO()
+        startupinfo.dwFlags     |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow  = subprocess.SW_HIDE
+    elif ImAMac():
+        startupinfo = None
+        cmd         = shlex.split(cmd)
+    else:
+        startupinfo = None
+        cmd         = shlex.split(cmd)
+    
+    logging.info("z")
+    
+    pipe  = subprocess.Popen(cmd, startupinfo=startupinfo, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, bufsize=1, close_fds=ON_POSIX)
+    qOut  = Queue()
+    qErr  = Queue()
+    tOut  = Thread(target=EnqueueProcessOutput, args=("OUT", pipe.stdout, qOut))
+    tErr  = Thread(target=EnqueueProcessOutput, args=("ERR", pipe.stderr, qErr))
+
+    tOut.start()
+    tErr.start()
+
+    logging.info("a")
+    callbackReturnedFalse = False
+
+    stdout = ""
+    stderr = ""
+    
+    percent = None
+    while True:
+        statusStr   = None
+        stderrLines = None
+        stdoutLines = None
+        logging.info("b")
+
+        try:
+            while True: # Exhaust the queue
+                stdoutLines = qOut.get_nowait()
+                stdout     += str(stdoutLines)
+        except: pass
+
+        try:
+            while True:
+                stderrLines = qErr.get_nowait()
+                stderr     += str(stderrLines)
+        except: pass
+        
+        logging.info("c")
+        if outputTranslator is not None:
+            #try:
+            logging.info("d")
+            statusStr, percentDoneInt = outputTranslator(stdoutLines, stderrLines, cmd)
+            logging.info("d")
+
+            if type(percentDoneInt) == int:
+                percent = percentDoneInt
+            elif percent is not None:
+                percentDoneInt = percent
+            logging.info("e")
+
+            #except:
+            #    pass
+
+        # Caller wants to abort!
+        if callback is not None and callback(percentDoneInt, statusStr) == False:       
+            try:
+                pipe.terminate()
+                pipe.kill()
+            except:
+                logging.error("RunProcess: kill() or terminate() caused an exception")
+
+            callbackReturnedFalse = True
+            break
+        logging.info("f")
+
+        # Check if done
+        if pipe.poll() is not None:
+            break
+
+        time.sleep(0.1) # Polling frequency. Lengthening this will decrease responsiveness
+
+    # Notify callback of exit. Check callballFinalize so we don't prematurely reset the progress bar
+    if callback is not None and callBackFinalize is True:
+        callback(True)
+
+    # Callback aborted command
+    if callbackReturnedFalse:
+        logging.error("RunProcess was aborted by caller")
+        #return False
+
+    # result
+    try:
+        remainingStdout = ""
+        remainingStderr = ""
+        remainingStdout, remainingStderr = pipe.communicate()
+    except IOError as e:
+        logging.error("Encountered error communicating with sub-process" + str(e))
+
+    success = (pipe.returncode == 0)
+    stdout += str(remainingStdout)
+    stderr += str(remainingStderr)
+
+    # Logging
+    if not __release__:
+        logging.info("return:  " + str(success))
+        logging.info("stdout:  " + str(stdout))
+        logging.error("stderr: " + str(stderr))
+
+    if returnOutput:
+        return stdout, stderr #, success
+    else:
+        return success
+
+
+#
+# Create working directory
+#
+
+def CreateWorkingDir(conf):
+    tempDir = None
+
+    # See if they specified a custom dir
+    if conf.ParamExists('paths', 'workingDir'):
+        tempDir = conf.GetParam('paths', 'workingDir')
+
+    appDataRoot = ''
+
+    # No temp dir configured
+    if tempDir == None or tempDir == '':
+        if ImAMac():
+            appDataRoot  = expanduser("~") + '/Library/Application Support/'
+            tempDir      = appDataRoot + 'Instagiffer/'
+        else:
+            appDataRoot  = expanduser("~") + os.sep
+            tempDir      = appDataRoot + '.instagiffer' + os.sep + 'working'
+
+    # Pre-emptive detection and correction of language issues
+    try:
+        tempDir.encode(locale.getpreferredencoding())
+    except UnicodeError:
+        logging.info("Users home directory is problematic due to non-latin characters: " + tempDir)
+        tempDir = GetFailSafeDir(conf, tempDir)
+
+    # Try to create temp directory
+    if not os.path.exists(tempDir):
+        os.makedirs(tempDir)
+        if not os.path.exists(tempDir):
+            logging.error("Failed to create working directory: " + tempDir)
+            return ""
+
+    logging.info("Working directory created: " + tempDir)
+    return tempDir
+
+
+#
+# For language auto-fix 
+#
+def GetFailSafeDir(conf, badPath):
+    path = badPath
+
+    if ImAPC():
+        goodPath = conf.GetParam('paths', 'failSafeDir')
+        if not os.path.exists(goodPath):
+            if tkMessageBox.askyesno("Automatically Fix Language Issue?", "It looks like you are using a non-latin locale. Can Instagiffer create directory " + goodPath + " to solve this issue?"):
+                err = False
+                try:
+                    os.makedirs(goodPath)
+                except:
+                    err = True
+
+                if os.path.exists(goodPath):
+                    path = goodPath
+                else:
+                    err = True
+
+                if err:
+                    tkMessageBox.showinfo("Error Fixing Language Issue", "Failed to create '" + goodPath + "'. Please make this directory manually in Windows Explorer, then restart Instagiffer.")
+        else:
+            path = goodPath
+
+    return path
+
+#
+# Configuration Class
+#
+
+class InstaConfig:
+
+    description = "Configuration Class"
+    author      = "Justin Todd"
+
+    def __init__(self, configPath):
+        self.path = configPath
+
+        # Load configuration file
+        if not os.path.exists(self.path):
+            logging.error("Unable to find configuration file: " + self.path)
+
+        self.ReloadFromFile()
+
+    def ReloadFromFile(self):
+        self.config = None
+        self.config = SafeConfigParser()
+        self.config.read(self.path)
+
+    def ParamExists(self, category, key):
+        if not category in self.config._sections:
+            return False
+
+        if not key.lower() in self.config._sections[category.lower()]:
+            #self.Dump()
+            #logging.error("Configuration parameter %s.%s does not exist" % (category, key))
+            return False
+        else:
+            #logging.info("Configuration parameter %s.%s exists" % (category, key))
+            return True
+
+    def GetParam(self, category, key):
+        retVal = ""
+        logging.info(sys.platform)
+
+        if self.ParamExists(category, key):
+            retVal = self.config._sections[category.lower()][key.lower()]
+        elif self.ParamExists(category + '-' + sys.platform, key):
+            retVal = self.config._sections[category.lower() + '-' + sys.platform][key.lower()] # platform specific config
+
+        if isinstance(retVal, bool) or isinstance(retVal, int):
+            return retVal
+
+        # We are dealing with strings or unicode 
+
+        # Expand variables
+        try:
+            retVal = os.path.expandvars(retVal)
+        except:
+            pass
+
+        # Config file encoding is UTF-8
+        #if not isinstance(retVal, unicode):
+        if not isinstance(retVal, str):
+            retVal = str(retVal, 'utf-8')
+
+
+        if retVal.startswith(";"):
+            retVal = ""
+
+        return retVal
+
+    # 
+    def GetParamBool(self, category, key):
+        val = self.GetParam(category, key)
+        boolVal = True
+
+        if isinstance(val, int):
+            boolVal = not (val == 0)
+        elif val == None:
+            boolVal = False
+        elif val == "":
+            boolVal = False
+        elif val.lower() == "false" or val == "0":
+            boolVal = False
+
+        return boolVal
+
+    #
+    def SetParam(self, category, key, value):
+        
+        try:
+            current = self.config._sections[category.lower()][key.lower()]
+        except KeyError:
+            current = None
+
+        self.config._sections[category.lower()][key.lower()] = value
+        if value != current:
+            return 1
+        else:
+            return 0
+
+    def SetParamBool(self, category, key, val):
+        boolVal = True
+        if isinstance(val, int):
+            boolVal = not (val == 0)        
+        elif val == None:
+            boolVal = False
+        elif val == "":
+            boolVal = False
+        elif val.lower() == "false" or val == "0":
+            boolVal = False
+
+        boolVal = str(boolVal)
+        changed = self.SetParam(category, key, val)
+        return changed
+
+
+    def Dump(self):
+        logging.info("=== GIF Configuration =========================================")
+
+        for cat in self.config._sections:
+            logging.info("%s:" % (str(cat)))
+
+            for k in self.config._sections[cat]:
+                dumpStr = "  - " + k + ": "
+                val = self.GetParam(cat, k)
+
+                if isinstance(val, bool):
+                    dumpStr += str(val) + " (boolean)"
+                elif isinstance(val, int):
+                    dumpStr += str(val) + " (int)"
+                else:
+                    dumpStr += val
+                logging.info(dumpStr)
+
+        logging.info("===============================================================")
+
+
+#
+# Wrapper around the Imagemagick font engine
+#
+
+class ImagemagickFont:
+    def __init__(self, imagemagickFontData):
+
+        self.fonts = dict()
+        fonts = re.findall(r'\s*Font: (.+?)\n\s*family: (.+?)\n\s*style: (.+?)\n\s*stretch: (.+?)\n\s*weight: (.+?)\n\s*glyphs: (.+?)\n', imagemagickFontData, re.DOTALL|re.M|re.UNICODE)
+
+        for font in fonts:
+            fontFamily  = font[1].strip()
+            fontId      = font[0].strip()
+            fontFile    = font[5].strip()
+            fontStyle   = font[2].strip()
+            fontStretch = font[3].strip()
+            fontWeight  = font[4].strip()
+
+
+            try:
+                fontFamily.decode('ascii')
+                fontId.decode('ascii')
+                fontFile.decode('ascii')
+            except:
+                logging.error("Unable to load font: " + fontFamily)
+                continue
+
+            # ignore stretched fonts, and styles other than italic, and weights we don't know about
+            if fontFamily != 'unknown' and fontStretch == "Normal" and (fontStyle == 'Italic' or fontStyle == 'Normal') and (fontWeight == '400' or fontWeight == '700'):
+
+                overallStyle = None
+                if fontStyle == 'Normal' and fontWeight =='400':
+                    overallStyle = "Regular"
+                elif fontStyle == 'Normal' and fontWeight =='700':
+                    overallStyle = "Bold"
+                elif fontStyle == 'Italic' and fontWeight =='400':
+                    overallStyle = "Italic"
+                elif fontStyle == 'Italic' and fontWeight == '700':
+                    overallStyle = "Bold Italic"
+
+                if overallStyle is not None:
+                    if fontFamily not in self.fonts:
+                        self.fonts[fontFamily] = dict()
+                    self.fonts[fontFamily][overallStyle] = fontId
+
+    def GetFontCount(self):
+        return len(list(self.fonts.keys()))
+
+    def GetFamilyList(self):
+        ret = list(self.fonts.keys())
+        ret.sort()
+        return tuple(ret)
+
+    def GetFontAttributeList(self, fontFamily):
+        ret = list(self.fonts[fontFamily].keys())
+        ret.sort(reverse=True)
+        return tuple(ret)
+
+    def GetFontId(self, fontFamily, fontStyle):
+        return self.fonts[fontFamily][fontStyle]
+
+    def GetBestFontFamilyIdx(self, userChoice=""):
+        fontFamilyList = self.GetFamilyList()
+
+        if len(userChoice) and userChoice in fontFamilyList:
+            return fontFamilyList.index(userChoice)
+        elif 'Impact' in fontFamilyList:
+            return fontFamilyList.index('Impact')
+        elif 'Arial Rounded MT Bold' in fontFamilyList:
+            return fontFamilyList.index('Arial Rounded MT Bold')
+        elif 'Arial' in fontFamilyList:
+            return fontFamilyList.index('Arial')
+        else:
+            return 0
+
+
+#
+# Animated Gif Engine
+#
+# Try to keep this class fully de-coupled from the GUI
+#
+
+class AnimatedGif:
+
+    description = "Animated Gif Engine"
+    author      = "Justin Todd"
+
+    def __init__(self, config, mediaLocator, workDir, periodicCallback, rootWindow):
+        self.conf          = config
+        self.workDir       = workDir
+        self.callback      = periodicCallback
+        self.origURL       = mediaLocator
+        self.isUrl         = False
+        self.videoWidth    = 0
+        self.videoHeight   = 0
+        self.videoLength   = None
+        self.videoFps      = 0.0
+        self.videoPath     = None
+        self.videoFileName = ""
+        self.imageSequence = []
+        self.imageSequenceCropParams = None  # At the moment, used for mac screen grab only. When the image sequence is "extracted" we sneak in the crop operation instead of resizing
+        self.fonts         = None
+        self.rootWindow    = rootWindow # Needed for mouse cursor
+        self.gifCreated    = False
+        self.gifOutPath    = None  # Warning: Don't use this directly!
+        self.lastSavedGifPath = None
+        self.overwriteGif  = True
+        self.frameDir      = workDir + os.sep + 'original'
+        self.resizeDir     = workDir + os.sep + 'resized'
+        self.processedDir  = workDir + os.sep + 'processed'
+        self.captureDir    = workDir + os.sep + 'capture'
+        self.maskDir       = workDir + os.sep + 'mask'
+        self.downloadDir   = workDir + os.sep + 'downloads'
+        self.previewFile   = workDir + os.sep + 'preview.gif'
+        self.vidThumbFile  = workDir + os.sep + 'thumb.png'
+        self.blankImgFile  = workDir + os.sep + 'blank.gif'
+        self.audioClipFile = workDir + os.sep + 'audio.wav'
+
+
+
+        self.OverwriteOutputGif(self.conf.GetParamBool('settings', 'overwriteGif'))
+
+        if self.conf.GetParam('paths', 'gifOutputPath').lower() == 'default':
+            self.gifOutPath = self.GetDefaultOutputDir() + os.sep + 'insta.gif'
+        else:
+            self.gifOutPath = self.conf.GetParam('paths', 'gifOutputPath')
+        
+        startupLog = "AnimatedGif::  gifOut: ["+self.gifOutPath+"]"
+        startupLog = "AnimatedGif:: media: ["+mediaLocator+"], workingDir: ["+workDir+"], gifOut: ["+self.GetNextOutputPath()+"]"
+        logging.info(startupLog)
+
+        if not os.path.exists(os.path.dirname(self.gifOutPath)):
+            os.makedirs(os.path.dirname(self.gifOutPath))
+            if not os.path.exists(os.path.dirname(self.gifOutPath)):
+                self.FatalError("Failed to create gif output directory: " + os.path.dirname(self.gifOutPath))
+        if not os.path.exists(self.frameDir):
+            os.makedirs(self.frameDir)
+            if not os.path.exists(self.frameDir):
+                self.FatalError("Failed to create working directory: " + self.frameDir)
+        if not os.path.exists(self.resizeDir):
+            os.makedirs(self.resizeDir)
+            if not os.path.exists(self.resizeDir):
+                self.FatalError("Failed to create working directory: " + self.resizeDir)
+        if not os.path.exists(self.processedDir):
+            os.makedirs(self.processedDir)
+            if not os.path.exists(self.processedDir):
+                self.FatalError("Failed to create working directory: " + self.processedDir)
+        if not os.path.exists(self.downloadDir):
+            os.makedirs(self.downloadDir)
+            if not os.path.exists(self.downloadDir):
+                self.FatalError("Failed to create working directory: " + self.downloadDir)
+        if not os.path.exists(self.captureDir):
+            os.makedirs(self.captureDir)
+            if not os.path.exists(self.captureDir):
+                self.FatalError("Failed to create working directory: " + self.captureDir)
+        if not os.path.exists(self.maskDir):
+            os.makedirs(self.maskDir)
+            if not os.path.exists(self.maskDir):
+                self.FatalError("Failed to create working directory: " + self.maskDir)
+
+        self.LoadFonts()
+        logging.info("4")
+        self.CheckPaths()
+        logging.info("5")
+        self.DeleteResizedImages()
+        logging.info("6")
+        self.DeleteExtractedImages()
+        logging.info("7")
+        self.DeleteProcessedImages()
+        logging.info("8")
+        self.DeleteCapturedImages()
+        self.DeleteMaskImages()
+        self.DeleteAudioClip()
+
+        print("12")
+        #self.DeleteGifOutput()
+
+        mediaLocator = self.ResolveUrlShortcutFile(mediaLocator)
+
+
+        logging.info("Analyzing the media path to determine what kind of video this is...")
+        self.isUrl      = IsUrl(mediaLocator)
+        captureRe       = re.findall('^::capture ([\.0-9]+) ([\.0-9]+) ([0-9]+)x([0-9]+)\+(\-?[0-9]+)\+(\-?[0-9]+) cursor=(\d+) retina=(\d+) web=(\d+)$', mediaLocator)
+        isImgSeq        = "|" in mediaLocator or IsPictureFile(mediaLocator)
+
+        if captureRe and len(captureRe[0]) == 9:
+            logging.info("Media locator indicates screen capture")
+            capDuration  = float(captureRe[0][0])
+            capTargetFps = float(captureRe[0][1])
+            capWidth     = int(captureRe[0][2])
+            capHeight    = int(captureRe[0][3])
+            capX         = int(captureRe[0][4])
+            capY         = int(captureRe[0][5])
+            cursorOn     = int(captureRe[0][6])
+            retina       = int(captureRe[0][7])
+            web          = int(captureRe[0][8])
+
+            self.Capture(capDuration, capTargetFps, capWidth, capHeight, capX, capY, cursorOn, retina, web)
+
+        elif isImgSeq:
+            logging.info("Media Locator is an image sequence")
+
+            for fname in mediaLocator.split("|"):
+                if len(fname):
+                    self.imageSequence.append(fname)
+
+            # Arbitrarily pick an FPS of 10 for image sequences
+            self.videoFps = 10.0
+
+        else:
+            if self.isUrl:
+                logging.info("Media locator is a URL")
+                self.downloadQuality = self.conf.GetParam('settings', 'downloadQuality')
+                self.videoPath       = self.DownloadVideo(mediaLocator)
+            else:
+                logging.info("Media locator points to a local file")
+                self.videoPath     = CleanupPath(mediaLocator)
+                self.videoFileName = os.path.basename(mediaLocator)
+
+        self.GetVideoParameters()
+
+
+    def ResolveUrlShortcutFile(self, filename):
+        """Given a Windows .url filename, returns the main URL, or argument passed in if it can't
+        find one."""
+
+        fname, fext = os.path.splitext(filename)
+        if not fext or len(fext) == 0 or str(fext.lower()) != '.url':
+            return filename
+    
+        # Windows .URL file format is compatible with built-in ConfigParser class.
+        config = RawConfigParser()
+        try:
+            config.read(filename)
+        except:
+            return filename
+
+        # Return the URL= value from the [InternetShortcut] section.
+        if config.has_option('InternetShortcut', 'url'):
+            return config.get('InternetShortcut', 'url').strip('"')
+        # If there is none, return the BASEURL= value from the [DEFAULT] section.
+        if 'baseurl' in list(config.defaults().keys()):
             return config.defaults()['baseurl'].strip('"')
         else:
             return filename
@@ -1064,9 +1868,21 @@ class AnimatedGif:
                 logging.info("First run. Need to build font cache first: " + fontCacheDir)
                 runCallback = self.callback
                 statBarCB   = FontConfOutHandler
+        else:
+            fontCacheDir = '.cache/fontconfig'
 
-        cmdListFonts       = '"%s" -list font' % (self.conf.GetParam('paths', 'convert'))
+            if not os.path.exists(fontCacheDir):
+                NotifyUser("First Time", "Welcome to Instagiffer for Mac! Before you can use text features, I need to build a font database. This will take a few minutes.")
+                logging.info("First run. Need to build font cache first: " + fontCacheDir)
+                runCallback = self.callback
+                statBarCB   = FontConfOutHandler
+
+        logging.info("1")
+        #cmdListFonts       = '"%s" -list font' % (self.conf.GetParam('paths', 'convert'))
+        cmdListFonts       = '%s -list font' % (self.conf.GetParam('paths', 'convert'))
+        #logging.info("2",cmdListFonts)
         (fontsOutput, err) = RunProcess(cmdListFonts, callback=runCallback, returnOutput=True, outputTranslator=statBarCB)
+        logging.info("3")
         self.fonts         = ImagemagickFont(fontsOutput)
 
         return True
@@ -1494,13 +2310,14 @@ class AnimatedGif:
         if not os.path.exists(mediaPath):
             self.FatalError("'" + mediaPath + "' does not exist!")
   
+        logging.info('"' + self.conf.GetParam('paths','ffmpeg') + '" -i "' + CleanupPath(mediaPath) + '"')
         stdout, stderr = RunProcess('"' + self.conf.GetParam('paths','ffmpeg') + '" -i "' + CleanupPath(mediaPath) + '"', None, True)
 
         pattern = re.compile(r'Stream.*Video.* ([0-9]+)x([0-9]+)')
         match   = pattern.search(stderr)
 
         if match:
-                w, h = map(int, match.groups()[0:2])
+                w, h = list(map(int, match.groups()[0:2]))
                 self.videoWidth = w
                 self.videoHeight = h
         else:
@@ -1511,7 +2328,7 @@ class AnimatedGif:
         match   = pattern.search(stderr)
 
         if match:
-            sarX, sarY, darX, darY = map(int, match.groups()[0:4])
+            sarX, sarY, darX, darY = list(map(int, match.groups()[0:4]))
             
             rDar = darX/float(darY)
             rSar = sarX/float(sarY)
@@ -1725,17 +2542,17 @@ class AnimatedGif:
             'title': 'Created and uploaded using Instagiffer'
         }
 
-        req = urllib2.Request("https://api.imgur.com/3/upload.json", urllib.urlencode(data))
+        req = urllib.request.Request("https://api.imgur.com/3/upload.json", urllib.parse.urlencode(data))
         req.add_header('Authorization', 'Client-ID ' +  __imgurcid__)
 
         try:
-            response = urllib2.urlopen(req)
+            response = urllib.request.urlopen(req)
         except:
             return None
 
-        response = json.loads(response.read())
+        response = json.loads(response.decode('utf-8'))
 
-        imgUrl = str(response[u'data'][u'link'])
+        imgUrl = str(response['data']['link'])
         logging.info("Imgur URL: " + imgUrl)
 
         if self.rootWindow is not None:
@@ -1828,7 +2645,7 @@ class AnimatedGif:
         except:
             pass
 
-        cmdExtractImages = u'"%s" -y -v verbose -ss %s -t %.1f -i "%s" -af "volume=%.1f" "%s"' % \
+        cmdExtractImages = '"%s" -y -v verbose -ss %s -t %.1f -i "%s" -af "volume=%.1f" "%s"' % \
             (
                 self.conf.GetParam('paths', 'ffmpeg'),
                 startTimeStr,
@@ -2001,7 +2818,7 @@ class AnimatedGif:
             else:
                 verbosityLevel = "verbose" #error"
 
-            cmdExtractImages = u'"%s" -v %s -sn -t %.1f -ss %s -i "%s" -r %s "%simage%%04d.png"' % \
+            cmdExtractImages = '"%s" -v %s -sn -t %.1f -ss %s -i "%s" -r %s "%simage%%04d.png"' % \
                 (
                     self.conf.GetParam('paths', 'ffmpeg'),
                     verbosityLevel,
@@ -2063,7 +2880,7 @@ class AnimatedGif:
 
             for x in range(1, deleteCount + 1):
                 framePath  = self.frameDir + os.sep
-                framePath += u'image%04d.png' % (x)
+                framePath += 'image%04d.png' % (x)
 
                 if not os.path.exists(framePath):
                     self.FatalError("De-glitch failed. Frame not found: " + framePath)
@@ -2678,7 +3495,7 @@ class AnimatedGif:
             # 
             #"e:\ffmpeg\ffmpeg.exe" -r 1/5 -start_number 0 -i "E:\images\01\padlock%3d.png" -c:v libx264 -r 30 -pix_fmt yuv420p e:\out.mp4
 
-            cmdConvertToVideo = u'"%s" -v verbose -y -r %.2f -start_number 0 -i "%simage%%04d.%s" ' % \
+            cmdConvertToVideo = '"%s" -v verbose -y -r %.2f -start_number 0 -i "%simage%%04d.%s" ' % \
                 (
                     self.conf.GetParam('paths', 'ffmpeg'),
                     fps,
@@ -3581,7 +4398,7 @@ class GifApp:
         }
 
         # Bind tool tips
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
         logging.info("Instagiffer main window has been created")
@@ -3859,7 +4676,7 @@ class GifApp:
         height = widget.winfo_height()
         x      = (widget.winfo_screenwidth() / 2) - (width / 2)
         y      = (widget.winfo_screenheight() / 2) - (height / 2)
-        widget.geometry('{0}x{1}+{2}+{3}'.format(width, height, x, y))
+        widget.geometry('{0}x{1}+{2}+{3}'.format(width, height, int(x), int(y)))
 
     def InitializeCropTool(self):
         if not self.gif:
@@ -4856,7 +5673,7 @@ class GifApp:
                 
                 self.SetStatus("Done")
 
-        except Exception, e:
+        except Exception as e:
             self.guiBusy  = True
             errorMsg = str(e)
             logging.error(errorMsg)
@@ -4918,8 +5735,8 @@ class GifApp:
         imgCount   = 0
         otherCount = 0
         for f in fileList:
-            f = f.replace( u'/', os.sep )
-            logging.info(u'Filename: "' + f + '"')
+            f = f.replace( '/', os.sep )
+            logging.info('Filename: "' + f + '"')
             if IsPictureFile(f):
                 imgCount += 1
             else:
@@ -4937,7 +5754,7 @@ class GifApp:
             return ""
 
         if imgCount > 1:
-            returnStr = u"|".join(fileList)
+            returnStr = "|".join(fileList)
         else:
             returnStr = fileList[0]
 
@@ -5026,7 +5843,7 @@ class GifApp:
             try:
                 self.gif = AnimatedGif(self.conf, fileName, self.tempDir, self.OnShowProgress, self.parent)
 
-            except Exception, e:
+            except Exception as e:
                 self.gif = None
                 rc       = False
                 errStr   = str(e)
@@ -5091,7 +5908,7 @@ class GifApp:
         popupWindow = Toplevel(parent)
         popupWindow.withdraw()
         popupWindow.title(title)
-        popupWindow.wm_iconbitmap('instagiffer.ico')
+      #  popupWindow.wm_iconbitmap('instagiffer.ico')
         #popupWindow.transient(self.mainFrame)         # 
 
         if not resizable:
@@ -5202,10 +6019,10 @@ class GifApp:
             self.OnCaptionConfig()
 
     def GetFamilyList(self):
-        return self.fonts.keys()
+        return list(self.fonts.keys())
 
     def GetFontAttributeList(self, fontFamily):
-        return self.fonts[fontFamily].keys()
+        return list(self.fonts[fontFamily].keys())
 
     def GetFontId(self, fontFamily, fontStyle):
         return self.fonts[fontFamily][fontStyle]
@@ -5258,7 +6075,7 @@ class GifApp:
             btnStartCap:  "Click here to start recording. If you CTRL-CLICK, a 5 second count-down will occur",
         }
 
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
 
@@ -5529,7 +6346,7 @@ class GifApp:
         }
 
         # Populate 
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
         def OnChooseFileClicked():
@@ -5595,7 +6412,7 @@ class GifApp:
             chkDeleteEvenOnly: "Delete even numbered frames only. This is handy if you want to thin out your frames to reduce framerate and overall GIF file size. You can perform this over-and-over again in order to keep reducing frame rate."
         }
 
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
         def OnDeleteClicked():
@@ -5685,7 +6502,7 @@ class GifApp:
             spnRotation:   "Rotate frames by this many degrees. 0 means no rotation"
         }
 
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
 
@@ -5813,7 +6630,7 @@ class GifApp:
             btnImport:         "Once you click this button, a dialog will appear where you can multi-select files to be imported multiple files. Note: They will be resized to match your current GIF dimensions.",
         }
 
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
         #
@@ -5957,7 +6774,7 @@ class GifApp:
             btnOK:         "All done!",
         }
 
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
         #
@@ -6084,7 +6901,7 @@ class GifApp:
             sclEndFrame:    "Frame to end crossfade",
         }
 
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
         def OnCreateFadeClicked():
@@ -6196,7 +7013,7 @@ class GifApp:
             txtPath:        "Hint: video URLs are supported in addition to local files",
         }
 
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
         def OnTimeChanged():
@@ -6349,7 +7166,7 @@ class GifApp:
             btnOK:         "All done!",
         }
 
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
 
@@ -6618,7 +7435,7 @@ class GifApp:
             btnEditSound:      "Pick your audio track and start time."
         }
 
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
         def OnOK():
@@ -6904,7 +7721,7 @@ class GifApp:
             btnOk:                     "Add this caption to the final GIF. Note: You can add up to 16 separate captions.",
         }
 
-        for item, tipString in tooltips.iteritems():
+        for item, tipString in list(tooltips.items()):
             createToolTip(item, tipString)
 
         def OnFontUpdate(*args):
@@ -6967,7 +7784,7 @@ class GifApp:
             # Check for unsupported unicode
             try:
                 caption.encode(locale.getpreferredencoding())
-            except UnicodeError, e:
+            except UnicodeError as e:
                 tkMessageBox.showinfo("Invalid Characters Detected", "Warning: Your caption contains invalid characters that don't exist in your locale's encoding (" + locale.getpreferredencoding() + "). Please remove unprintable characters before generating GIF.\n\n" + str(e))
 
             caption = caption.replace("\n",'[enter]')
@@ -7213,8 +8030,8 @@ class InstaCommandLine:
 
     def GetVideoPath(self):
         if self.videoFileName is not None:
-            logging.info(u"File specified on command line: " + self.videoFileName) 
-            logging.info(u"File exists: %d" % (os.path.exists(self.videoFileName)))
+            logging.info("File specified on command line: " + self.videoFileName) 
+            logging.info("File exists: %d" % (os.path.exists(self.videoFileName)))
             return self.videoFileName
         else:
             return None
@@ -7234,17 +8051,17 @@ class InstaCommandLine:
     # Progress callback
     def OnShowProgress(self, doneFlag, ignore = None):
         if doneFlag:
-            print " [OK]"
+            print (" [OK]")
         else:
             sys.stdout.write('.')
 
     # Makes a GIF according to current configuration
     def MakeGif(self):
-        print "Extracting frames:"
+        print ("Extracting frames:")
         self.gif.ExtractFrames()
-        print "Cropping and resizing:"
+        print ("Cropping and resizing:")
         self.gif.CropAndResize()
-        print "Generating GIF:"
+        print ("Generating GIF:")
         self.gif.Generate()
 
 
